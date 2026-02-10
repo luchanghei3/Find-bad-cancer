@@ -1,0 +1,73 @@
+步骤 1：生成 “PHENOTYPE ID → 癌种” 的映射文件
+先从 cancer_id_count_stats.tsv 提取所有 PHENOTYPE ID 和对应癌种，生成映射文件：
+
+# 拆分癌种-ID列表，生成phenotype_id -> cancer_type的映射
+awk -F "\t" '{
+    # 拆分ID列表（逗号分隔）
+    split($3, ids, ",");
+    # 遍历每个ID，输出“ID \t 癌种”
+    for (i in ids) {
+        print ids[i] "\t" $1;
+    }
+}' cancer_id_count_stats.tsv > phenotype2cancer.tsv
+
+
+步骤 2：按癌种统计样本数 / 基因数 / 位点数
+用 awk 关联映射文件和突变数据，完成统计：
+
+# 核心统计脚本：关联癌种，统计去重后的样本数、基因数、位点数（位点数用第23列HGVSG）
+awk -F "\t" '
+# 第一步：加载phenotype_id -> cancer_type的映射（只执行一次）
+NR==FNR {
+    pheno2cancer[$1] = $2;
+    next;
+}
+# 第二步：处理突变数据（跳过表头）
+NR>1 {
+    # 获取当前行的PHENOTYPE ID（第6列）
+    pheno_id = $6;
+    # 找到对应的癌种（无对应则跳过）
+    cancer_type = pheno2cancer[pheno_id];
+    if (cancer_type == "") {
+        next;
+    }
+    
+    # 1. 统计样本数：用COSMIC_SAMPLE_ID去重（第4列）
+    sample_id = $4;
+    if (!sample_count[cancer_type][sample_id]) {
+        sample_count[cancer_type][sample_id] = 1;
+        total_sample[cancer_type]++;
+    }
+    
+    # 2. 统计基因数：用GENE_SYMBOL去重（第1列）
+    gene = $1;
+    if (!gene_count[cancer_type][gene]) {
+        gene_count[cancer_type][gene] = 1;
+        total_gene[cancer_type]++;
+    }
+    
+    # 3. 统计位点数：用第23列HGVSG去重（核心修改！）
+    locus = $23;
+    # 过滤空值（避免统计无效位点）
+    if (locus != "" && !locus_count[cancer_type][locus]) {
+        locus_count[cancer_type][locus] = 1;
+        total_locus[cancer_type]++;
+    }
+}
+# 第三步：输出统计结果
+END {
+    # 打印表头
+    print "CANCER_TYPE\tSAMPLE_COUNT\tGENE_COUNT\tLOCUS_COUNT";
+    # 遍历所有癌种，输出统计值
+    for (type in total_sample) {
+        print type "\t" total_sample[type] "\t" total_gene[type] "\t" total_locus[type];
+    }
+}' phenotype2cancer.tsv ni_ns_un.tsv > cancer_stats_final.tsv
+
+
+下一步根据数据表里第一列的基因名，过滤出一个只包含1000+基因的表，对这个表重新运行上面统计代码，即可找到与1000基因交集统计数据
+# 核心命令：筛选genes.1col.txt中的基因对应的行，保留表头
+# 第一步：提取表头
+head -n1 ni_ns_un.tsv > ni_ns_un_target_genes.tsv
+# 第二步：筛选目标基因的行（-F精确匹配，-f读取基因列表）
+grep -Ff genes.1col.txt ni_ns_un.tsv | grep -v "^GENE_SYMBOL" >> ni_ns_un_target_genes.tsv
