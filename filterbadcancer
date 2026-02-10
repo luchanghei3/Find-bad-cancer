@@ -1,0 +1,10 @@
+awk -F'\t' '
+NR==1 {print; next}
+{
+  h = tolower($6" "$7" "$8" "$9)
+  if (h ~ /(carcinoma|sarcoma|malignant|neoplasm|glioma|blastoma|leukaemia|lymphoma|myeloma|melanoma|cancer|neuroblastoma|retinoblastoma|wilms_tumour)/ &&
+      h !~ /(benign|adenoma|leiomyoma|fibroma|lipoma|nevus|hyperplasia|hamartoma|xanthoma|cyst|dysplasia|fibromatosis|low malignant potential|uncertain malignant potential)/)
+    print
+}' Cosmic_Classification_v102_GRCh38.tsv > badcancer.tsv
+
+
