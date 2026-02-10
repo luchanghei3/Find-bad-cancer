@@ -1,0 +1,11 @@
+awk -F "\t" 'NR>1 {
+    cancer_type = $2 "_" ($3==""?"NS":$3) "_" $6 "_" ($7==""?"NS":$7) "_" ($8==""?"NS":$8) "_" ($9==""?"NS":$9);
+    id_list[cancer_type] = id_list[cancer_type] "," $1;
+    count[cancer_type]++;  # 统计每个癌种的ID数量
+}
+END {
+    for (type in id_list) {
+        gsub(/^,/, "", id_list[type]);
+        print type "\t" count[type] "\t" id_list[type];
+    }
+}' badcancer.tsv | sort -k2,2nr > cancer_id_count_stats.tsv  # 按ID数量降序排序
