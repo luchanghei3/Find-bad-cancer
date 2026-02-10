@@ -9,3 +9,14 @@ END {
         print type "\t" count[type] "\t" id_list[type];
     }
 }' badcancer.tsv | sort -k2,2nr > cancer_id_count_stats.tsv  # 按ID数量降序排序
+
+
+
+命令部分	作用
+awk -F "\t"	指定分隔符为制表符（适配 TSV 文件）
+NR>1	跳过第一行表头，只处理数据行
+cancer_type = $2 "_" ($3==""?"NS":$3) ...	拼接关键字段生成唯一的 “癌种标识”，空值用 NS 填充
+id_list[cancer_type] = id_list[cancer_type] "," $1	把每个 ID 追加到对应癌种的列表中
+count[cancer_type]++	统计每个癌种的 ID 数量
+gsub(/^,/, "", id_list[type])	移除 ID 列表开头多余的逗号
+sort -k2,2nr	按 ID 数量从多到少排序，方便看高频癌种
